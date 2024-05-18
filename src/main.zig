@@ -17,8 +17,10 @@ const SHELL_NAME_C = "\x1b[36m[UOShell]\x1b[0m";
 const stdin = std.io.getStdIn().reader();
 const stdout = std.io.getStdOut().writer();
 
-const COMMANDS = [1][]const u8{"help"};
+const COMMANDS = [1][]const u8{ "help", "ls", "cd" };
 const EXIT = "exit";
+
+const HELP = "[USHELL] Help - Basic Commands\n  ls\n  cd\n";
 
 pub fn main() anyerror!void {
     try stdout.print("{s} Welcome to {s}!{s}\n", .{ RED, SHELL_NAME, RESET });
@@ -32,14 +34,16 @@ pub fn main() anyerror!void {
 
         const result = try stdin.readUntilDelimiterOrEof(in_buffer[0..], '\n');
 
-        for (COMMANDS) |command| {
-            if (std.mem.eql(u8, result.?, EXIT)) {
-                exit_cond = true;
-            } else if (std.mem.eql(u8, result.?, command)) {
-                std.debug.print("Command!\n", .{});
-            } else {
-                std.debug.print("Not a Command!\n", .{});
-            }
+        if (std.mem.eql(u8, result.?, EXIT)) {
+            exit_cond = true;
+        } else if (std.mem.eql(u8, result.?, "help")) {
+            std.debug.print("{s}", .{HELP});
+        } else if (std.mem.eql(u8, result.?, "ls")) {
+            std.debug.print("File1 File2 File3\n", .{});
+        } else if (std.mem.eql(u8, result.?, "cd")) {
+            std.debug.print("Can't change directories at the moment\n", .{});
+        } else {
+            std.debug.print("{s} is not a Command!\n", .{result.?});
         }
     }
 }
