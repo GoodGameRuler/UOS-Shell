@@ -1,8 +1,11 @@
 const std = @import("std");
-const child_process = std.child_process.ChildProcess;
-const alloc = std.mem.Allocator;
+const child_process = std.ChildProcess;
 
-pub fn main() void {
+pub fn main() !void {
+    var buffer: [1000]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&buffer);
+    const alloc = fba.allocator();
+
     const argv = [_][]const u8{ "ls", "./" };
 
     const proc = try child_process.run(.{
