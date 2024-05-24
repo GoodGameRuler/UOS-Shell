@@ -43,6 +43,11 @@ pub fn main() anyerror!void {
     try commands.put("pwd", "/usr/bin/pwd");
     try commands.put("neofetch", "/usr/bin/neofetch");
 
+    var env_map = std.process.EnvMap.init(alloc);
+    defer env_map.deinit();
+
+    try commands.put("PATH", "/usr/bin:/usr/local/bin");
+
     try stdout.print("{s} Welcome to {s}!{s}\n", .{ RED, SHELL_NAME, RESET });
 
     var exit_cond = false;
@@ -52,37 +57,40 @@ pub fn main() anyerror!void {
         try stdout.print("{s} \n", .{SHELL_NAME_C});
         try stdout.print("> ", .{});
 
-        var input_vargs: []u8 = stdin.readUntilDelimiterOrEofAlloc(io_allocator, '\n', 100) catch |err| switch (err) {
-            error.StreamTooLong => {
-                try stdout.print("Stream Too Long Allocation Error 1!\n", .{});
-                return;
-            },
-            else => {
-                try stdout.print("Unknown Allocation Error 1!\n", .{});
-                return;
-            },
-        } orelse "";
+        // var input_vargs: []u8 = stdin.readUntilDelimiterOrEofAlloc(io_allocator, '\n', 100) catch |err| switch (err) {
+        //     error.StreamTooLong => {
+        //         try stdout.print("Stream Too Long Allocation Error 1!\n", .{});
+        //         return;
+        //     },
+        //     else => {
+        //         try stdout.print("Unknown Allocation Error 1!\n", .{});
+        //         return;
+        //     },
+        // } orelse "";
+        //
+        // defer io_allocator.free(input_vargs);
+        //
+        // const input_command = parseCommand(input_vargs, io_allocator);
+        //
+        // defer if (input_command) |i| io_allocator.free(i);
+        //
+        // var exec_str: [2][]const u8 = undefined;
+        //
+        // if (input_command) |command| {
+        //     exec_str = [2][]const u8{ command, input_vargs[(command.len + 1)..] };
+        // } else {
+        //     exec_str = [2][]const u8{ input_vargs[0..], "" };
+        // }
 
-        defer io_allocator.free(input_vargs);
+        const exec_str = readInput(io_allocator) orelse continue;
+        std.debug.print("'{s}'\n", .{exec_str});
 
-        const input_command = parseCommand(input_vargs, io_allocator);
-
-        defer if (input_command) |i| io_allocator.free(i);
-
-        var exec_str: [2][]const u8 = undefined;
-
-        if (input_command) |command| {
-            exec_str = [2][]const u8{ command, input_vargs[(command.len + 1)..] };
-        } else {
-            exec_str = [2][]const u8{ input_vargs[0..], "" };
-        }
-
-        exec.execCommand(exec_str, commands, alloc) catch |err| switch (err) {
+        exec.execCommand(exec_str, commands, env_map, alloc) catch |err| switch (err) {
             ExecCommandError.ExitError => {
                 exit_cond = true;
             },
             ExecCommandError.CommandNotFound => {
-                try stdout.print("Command '{s}' not Found!\n", .{input_command orelse input_vargs});
+                try stdout.print("Command '{s}' not Found!\n", .{exec_str[0]});
             },
             ExecCommandError.OutOfMemeory => {
                 try stdout.print("Insufficient Buffer Memory for Result!\n", .{});
@@ -94,6 +102,82 @@ pub fn main() anyerror!void {
             },
         };
     }
+}
+
+fn readInput(alloc: std.mem.Allocator) ?[][]u8 {
+    var continue_input = true;
+
+    var tokenised_input = std.ArrayList([]u8).init(alloc);
+    var tokenised_word = std.ArrayList(u8).init(alloc);
+
+    defer tokenised_word.deinit();
+    defer tokenised_input.deinit();
+
+    while (continue_input) {
+        var input_str: []u8 = stdin.readUntilDelimiterOrEofAlloc(alloc, '\n', 100) catch |err| switch (err) {
+            error.StreamTooLong => {
+                stdout.print("Stream Too Long Allocation Error 1!\n", .{}) catch {
+                    std.debug.print("Error printing not working 1\n", .{});
+                };
+                return null;
+            },
+            else => {
+                stdout.print("Unknown Allocation Error 1!\n", .{}) catch {
+                    std.debug.print("Error printing not working 1\n", .{});
+                };
+
+                return null;
+            },
+        } orelse "";
+
+        _ = &input_str;
+
+        var last_char: ?u8 = null;
+        var last_backslash = false;
+
+        for (input_str) |char| {
+            if (char == ' ' or char == '\t') {
+
+                // Meaning we just finished a word
+                if (last_char != null) {
+                    tokenised_input.append(tokenised_word.toOwnedSlice() catch "") catch {
+                        return null;
+                    };
+                }
+
+                last_char = null;
+            } else if (char == '\\' and (last_char == null or last_char == '\\')) {
+                last_char = '\\';
+                last_backslash = true;
+            } else {
+                if (last_backslash) {
+                    tokenised_word.append(last_char.?) catch {
+                        return null;
+                    };
+
+                    last_backslash = false;
+                }
+
+                last_char = char;
+
+                tokenised_word.append(char) catch return null;
+            }
+        } else {
+            if (tokenised_word.toOwnedSlice() catch null) |str| {
+                tokenised_input.append(str) catch {
+                    return null;
+                };
+            }
+        }
+
+        defer alloc.free(input_str);
+
+        if (last_char != '\\') {
+            continue_input = false;
+        }
+    }
+
+    return tokenised_input.toOwnedSlice() catch null;
 }
 
 fn parseCommand(input_vargs: []u8, allocator: std.mem.Allocator) ?[]u8 {
