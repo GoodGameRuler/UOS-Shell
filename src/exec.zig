@@ -3,7 +3,7 @@ const child_process = std.ChildProcess;
 
 pub const ExecCommandError = error{ CommandNotFound, OutOfMemeory, ExitError, UnknownError };
 
-pub fn execCommand(exec_str: [][]u8, commands: std.StringHashMap([]const u8), alloc: std.mem.Allocator) ExecCommandError!void {
+pub fn execCommand(exec_str: [2][]const u8, commands: std.StringHashMap([]const u8), alloc: std.mem.Allocator) ExecCommandError!void {
     const exec_str_command: []const u8 = exec_str[0];
     const exit_string = "exit";
 
@@ -15,17 +15,9 @@ pub fn execCommand(exec_str: [][]u8, commands: std.StringHashMap([]const u8), al
         return ExecCommandError.ExitError;
     }
 
-    var map_iter = commands.keyIterator();
-    const command = while (map_iter.next()) |command| {
-        if (std.mem.eql(u8, exec_str_command, command.*)) {
-            break command.*;
-        }
-    } else {
-        return ExecCommandError.CommandNotFound;
-    };
+    const path_adjusted_command: []const u8 = commands.get(exec_str_command) orelse return ExecCommandError.CommandNotFound;
 
-    const path_adjusted_command: []const u8 = commands.get(command) orelse return ExecCommandError.UnknownError;
-    const padjusted_exec_str = [_][]const u8{path_adjusted_command};
+    const padjusted_exec_str = [_][]const u8{ path_adjusted_command, exec_str[1] };
 
     const proc = child_process.run(.{
         .allocator = alloc,
@@ -39,6 +31,7 @@ pub fn execCommand(exec_str: [][]u8, commands: std.StringHashMap([]const u8), al
     defer alloc.free(proc.stderr);
 
     std.debug.print("{s}", .{proc.stdout});
+    std.debug.print("{s}", .{proc.stderr});
 
     const term = proc.term;
     _ = term;
