@@ -12,8 +12,8 @@ This is going to be part of a multipart project to get up an running a multicore
 
 *\* - In Progress*
 - [ ] FileSys Integration
-- [] Processes Integration *
-- [] Basic Shell Functionality *
+- [ ] Processes Integration *
+- [ ] Basic Shell Functionality *
 
 Smaller Granularity
 - [ ] Tokenise input
